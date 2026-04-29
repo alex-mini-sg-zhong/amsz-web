@@ -35,6 +35,7 @@ def main() -> None:
             create_app(),
             host=settings.api_host,
             port=settings.api_port,
+            access_log=False,
             log_config=None,
         )
         return
@@ -47,4 +48,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
