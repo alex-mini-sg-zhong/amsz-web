@@ -1,0 +1,131 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: amsz-task-service
+parameters:
+  - name: APP_NAME
+    required: true
+  - name: APP_ENV
+    value: dev
+  - name: IMAGE
+    required: true
+  - name: LOG_LEVEL
+    value: INFO
+  - name: REPLICAS
+    value: "1"
+  - name: WORKER_QUEUE
+    value: default
+  - name: WORKER_CONCURRENCY
+    value: "2"
+  - name: API_KEY
+    required: true
+  - name: DATABASE_URL
+    required: true
+objects:
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: ${APP_NAME}-config
+      labels:
+        app: ${APP_NAME}
+    data:
+      APP_ENV: ${APP_ENV}
+      LOG_LEVEL: ${LOG_LEVEL}
+      API_HOST: 0.0.0.0
+      API_PORT: "8200"
+      AUTO_CREATE_TABLES: "true"
+      POD_NAME: ${APP_NAME}
+      WORKER_QUEUE: ${WORKER_QUEUE}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY}
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: ${APP_NAME}-secret
+      labels:
+        app: ${APP_NAME}
+    type: Opaque
+    stringData:
+      API_KEY: ${API_KEY}
+      DATABASE_URL: ${DATABASE_URL}
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: ${APP_NAME}
+      labels:
+        app: ${APP_NAME}
+    spec:
+      selector:
+        app: ${APP_NAME}
+      ports:
+        - name: http
+          port: 8200
+          targetPort: http
+  - apiVersion: route.openshift.io/v1
+    kind: Route
+    metadata:
+      name: ${APP_NAME}
+      labels:
+        app: ${APP_NAME}
+    spec:
+      to:
+        kind: Service
+        name: ${APP_NAME}
+      port:
+        targetPort: http
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: ${APP_NAME}
+      labels:
+        app: ${APP_NAME}
+    spec:
+      replicas: ${REPLICAS}
+      selector:
+        matchLabels:
+          app: ${APP_NAME}
+      template:
+        metadata:
+          labels:
+            app: ${APP_NAME}
+        spec:
+          containers:
+            - name: ${APP_NAME}
+              image: ${IMAGE}
+              imagePullPolicy: IfNotPresent
+              command:
+                - python
+                - -m
+                - app.main
+                - combined
+              envFrom:
+                - configMapRef:
+                    name: ${APP_NAME}-config
+                - secretRef:
+                    name: ${APP_NAME}-secret
+              env:
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+              ports:
+                - name: http
+                  containerPort: 8200
+              readinessProbe:
+                httpGet:
+                  path: /healthz
+                  port: http
+                initialDelaySeconds: 5
+                periodSeconds: 10
+              livenessProbe:
+                httpGet:
+                  path: /healthz
+                  port: http
+                initialDelaySeconds: 15
+                periodSeconds: 20
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi

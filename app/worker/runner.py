@@ -24,9 +24,10 @@ class WorkerRunner:
         handler_registry: dict[str, TaskHandler] | None = None,
     ) -> None:
         self.settings = get_settings()
+        self.worker_id = self.settings.worker_id or f"{self.settings.pod_name}-worker"
         self.logger = get_logger(
             "app.worker.runner",
-            worker_id=self.settings.worker_id,
+            worker_id=self.worker_id,
         )
         self.queue_name = queue_name
         self.concurrency = concurrency
@@ -47,7 +48,7 @@ class WorkerRunner:
             repository.recover_expired_running_tasks(self.settings.worker_recover_limit)
             claimed = repository.claim_tasks(
                 queue_name=self.queue_name,
-                worker_id=self.settings.worker_id,
+                worker_id=self.worker_id,
                 pod_name=self.settings.pod_name,
                 batch_size=self.settings.worker_claim_batch_size,
                 lease_seconds=self.settings.worker_lease_seconds,
@@ -67,7 +68,7 @@ class WorkerRunner:
         logger = get_logger(
             "app.worker.runner",
             task_id=task.id,
-            worker_id=self.settings.worker_id,
+            worker_id=self.worker_id,
         )
         handler = self.handler_registry.get(task.task_type)
         if handler is None:
@@ -92,7 +93,7 @@ class WorkerRunner:
                 task_id=task.id,
                 task_type=task.task_type,
                 attempt_no=task.attempt_no,
-                worker_id=self.settings.worker_id,
+                worker_id=self.worker_id,
                 cancel_event=cancel_event,
                 progress_callback=lambda progress, stage: self._update_progress(
                     task.id,
@@ -107,7 +108,7 @@ class WorkerRunner:
                 repository.mark_succeeded(
                     task_id=task.id,
                     attempt_no=task.attempt_no,
-                    worker_id=self.settings.worker_id,
+                    worker_id=self.worker_id,
                     result=result,
                 )
             logger.info("Task succeeded")
@@ -121,7 +122,7 @@ class WorkerRunner:
                     repository.mark_retry_wait(
                         task_id=task.id,
                         attempt_no=task.attempt_no,
-                        worker_id=self.settings.worker_id,
+                        worker_id=self.worker_id,
                         error_code=exc.error_code,
                         error_message=exc.message,
                         scheduled_at=next_run,
@@ -153,7 +154,7 @@ class WorkerRunner:
                 renewed = repository.renew_lease(
                     task_id=task.id,
                     attempt_no=task.attempt_no,
-                    worker_id=self.settings.worker_id,
+                    worker_id=self.worker_id,
                     lease_seconds=self.settings.worker_lease_seconds,
                 )
                 if not renewed:
@@ -167,7 +168,7 @@ class WorkerRunner:
             repository = TaskRepository(session)
             repository.update_progress(
                 task_id=task_id,
-                worker_id=self.settings.worker_id,
+                worker_id=self.worker_id,
                 progress=progress,
                 current_stage=stage,
             )
@@ -183,7 +184,7 @@ class WorkerRunner:
             repository.mark_failed(
                 task_id=task.id,
                 attempt_no=task.attempt_no,
-                worker_id=self.settings.worker_id,
+                worker_id=self.worker_id,
                 error_code=error_code,
                 error_message=error_message,
                 attempt_status=AttemptStatus.FAILED,
@@ -195,7 +196,7 @@ class WorkerRunner:
             repository.mark_dead(
                 task_id=task.id,
                 attempt_no=task.attempt_no,
-                worker_id=self.settings.worker_id,
+                worker_id=self.worker_id,
                 error_code=error_code,
                 error_message=error_message,
             )
@@ -206,7 +207,7 @@ class WorkerRunner:
             repository.mark_canceled(
                 task_id=task.id,
                 attempt_no=task.attempt_no,
-                worker_id=self.settings.worker_id,
+                worker_id=self.worker_id,
             )
 
     @staticmethod

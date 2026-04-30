@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     )
     auto_create_tables: bool = True
 
-    worker_id: str = "worker-local"
+    worker_id: str = ""
     pod_name: str = "pod-local"
     worker_queue: str = "default"
     worker_concurrency: int = 2
@@ -41,4 +41,3 @@ class Settings(BaseSettings):
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings()
-

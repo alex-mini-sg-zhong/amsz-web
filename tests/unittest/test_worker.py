@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.core.config import get_settings
 from app.db.session import session_scope
 from app.repositories.task_repository import TaskRepository
 from app.schemas.task import TaskCreateRequest
@@ -52,3 +53,13 @@ def test_worker_moves_retryable_task_to_retry_wait() -> None:
         task = TaskRepository(session).get_task(task_id)
         assert task is not None
         assert task.status.value == "RETRY_WAIT"
+
+
+def test_worker_runner_defaults_worker_id_from_pod_name(monkeypatch) -> None:
+    monkeypatch.setenv("WORKER_ID", "")
+    monkeypatch.setenv("POD_NAME", "pod-runtime")
+    get_settings.cache_clear()
+
+    runner = WorkerRunner(queue_name="default", concurrency=1)
+
+    assert runner.worker_id == "pod-runtime-worker"
