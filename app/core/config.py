@@ -25,7 +25,7 @@ class Settings(BaseSettings):
         default="sqlite+pysqlite:///./amsz.db",
         description="MySQL example: mysql+pymysql://user:pass@host:3306/dbname",
     )
-    auto_create_tables: bool = True
+    auto_create_tables: bool = False
 
     worker_id: str = ""
     pod_name: str = "pod-local"

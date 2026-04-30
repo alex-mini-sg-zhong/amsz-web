@@ -9,7 +9,6 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import get_settings
-from app.db.base import Base
 from app.db import models  # noqa: F401
 
 
@@ -37,11 +36,6 @@ def get_session_factory() -> sessionmaker[Session]:
         expire_on_commit=False,
         future=True,
     )
-
-
-def create_tables() -> None:
-    Base.metadata.create_all(bind=get_engine())
-
 
 @contextmanager
 def session_scope() -> Iterator[Session]:

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import pytest
+
 from app.core.config import get_settings
+from app.db.base import Base
 from app.db.session import session_scope
 from app.repositories.task_repository import TaskRepository
 from app.schemas.task import TaskCreateRequest
@@ -63,3 +66,18 @@ def test_worker_runner_defaults_worker_id_from_pod_name(monkeypatch) -> None:
     runner = WorkerRunner(queue_name="default", concurrency=1)
 
     assert runner.worker_id == "pod-runtime-worker"
+
+
+def test_worker_run_forever_does_not_attempt_schema_creation(monkeypatch) -> None:
+    def fail_create_all(*args, **kwargs) -> None:
+        raise AssertionError("schema creation should not happen during worker startup")
+
+    def stop_runner(wait_for_completion: bool = False) -> int:
+        raise RuntimeError("stop-loop")
+
+    monkeypatch.setattr(Base.metadata, "create_all", fail_create_all)
+    runner = WorkerRunner(queue_name="default", concurrency=1)
+    monkeypatch.setattr(runner, "run_once", stop_runner)
+
+    with pytest.raises(RuntimeError, match="stop-loop"):
+        runner.run_forever()

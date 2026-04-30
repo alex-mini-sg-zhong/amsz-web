@@ -1,6 +1,13 @@
 from __future__ import annotations
 
-from app.db.session import session_scope
+import os
+import sqlite3
+
+from fastapi.testclient import TestClient
+
+from app.api.app import create_app
+from app.core.config import get_settings
+from app.db.session import get_engine, get_session_factory, session_scope
 from app.repositories.task_repository import TaskRepository
 from app.worker.runner import WorkerRunner
 
@@ -85,3 +92,31 @@ def test_submit_then_worker_executes_task(client) -> None:
         task = TaskRepository(session).get_task(task_id)
         assert task is not None
         assert task.lease_owner is None
+
+
+def test_missing_schema_does_not_trigger_implicit_creation(monkeypatch, tmp_path) -> None:
+    empty_db_path = tmp_path / "empty.db"
+    monkeypatch.setenv("DATABASE_URL", f"sqlite+pysqlite:///{empty_db_path}")
+    monkeypatch.setenv("AUTO_CREATE_TABLES", "false")
+    get_settings.cache_clear()
+    get_engine.cache_clear()
+    get_session_factory.cache_clear()
+
+    client = TestClient(create_app(), raise_server_exceptions=False)
+    response = client.post(
+        "/api/v1/tasks",
+        headers={"X-API-Key": "test-key"},
+        json={
+            "task_type": "noop.success",
+            "queue_name": "default",
+            "payload": {"echo": "hello"},
+        },
+    )
+
+    assert response.status_code == 500
+
+    with sqlite3.connect(empty_db_path) as connection:
+        tables = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()
+    assert tables == []

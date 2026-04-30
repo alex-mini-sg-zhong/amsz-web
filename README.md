@@ -34,6 +34,7 @@ export DATABASE_URL="sqlite+pysqlite:///./amsz.db"
 ```
 
 如果 `WORKER_ID` 未设置，系统会自动使用 `${POD_NAME}-worker`。
+默认 `AUTO_CREATE_TABLES=false`，生产运行时不会自动执行 schema 变更。
 
 ## 启动 API
 ```bash
@@ -86,18 +87,36 @@ curl -X POST "http://127.0.0.1:8200/api/v1/tasks" \
 ./ci/run_functionaltest.sh
 ```
 
+## Schema Migration
+Schema 变更已从 Pod 启动流程中剥离。API、Worker、combined 模式都不会自动建表。
+
+本地或 CI 执行迁移：
+```bash
+python3 -m pip install -r requirements-dev.txt
+./ci/run_migration.sh
+```
+
+迁移机制说明：
+- 使用 Alembic 维护版本化 schema，基线文件位于 `alembic/versions/`
+- MySQL 环境下会先申请 `GET_LOCK('amsz_schema_migration', 60)` 再执行迁移
+- 同一套数据库的 schema migration 应只由 Drone 执行一次
+
 ## Jenkins 与 OpenShift
 新增交付物：
 - `Jenkinsfile`：安装依赖、执行单元测试、执行功能测试、构建镜像、部署 OpenShift
 - `Dockerfile`：默认以 `combined` 模式启动
 - `openshift/template.yaml`：ConfigMap、Secret、Service、Route、Deployment 一体模板
 - `requirements.txt` / `requirements-dev.txt`：给 Jenkins 与镜像构建直接使用
+- `.drone.yml`：独立执行 schema migration
 
 Jenkins 约定的凭据 ID：
 - `image-registry-creds`
 - `openshift-token`
 - `amsz-api-key`
 - `amsz-database-url`
+
+Drone 约定的 secret：
+- `amsz_database_url`
 
 OpenShift 部署示例：
 ```bash

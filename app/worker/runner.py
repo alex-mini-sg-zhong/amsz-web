@@ -8,7 +8,7 @@ from time import sleep
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.core.time import utc_now
-from app.db.session import create_tables, session_scope
+from app.db.session import session_scope
 from app.domain.enums import AttemptStatus
 from app.domain.exceptions import NonRetryableTaskError, RetryableTaskError, TaskError
 from app.repositories.task_repository import ClaimedTask, TaskRepository
@@ -35,8 +35,6 @@ class WorkerRunner:
         self.executor = ThreadPoolExecutor(max_workers=self.concurrency)
 
     def run_forever(self) -> None:
-        if self.settings.auto_create_tables:
-            create_tables()
         self.logger.info("Worker started")
         while True:
             self.run_once(wait_for_completion=False)

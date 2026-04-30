@@ -5,6 +5,7 @@ import logging
 from fastapi.testclient import TestClient
 
 from app.api.app import create_app
+from app.db.base import Base
 from app.core.logging import configure_logging
 
 
@@ -31,3 +32,14 @@ def test_request_logging_uses_unified_fields(caplog) -> None:
     assert "http_method=GET" in caplog.text
     assert "http_path=/healthz" in caplog.text
     assert "status_code=200" in caplog.text
+
+
+def test_create_app_does_not_attempt_schema_creation(monkeypatch) -> None:
+    def fail_create_all(*args, **kwargs) -> None:
+        raise AssertionError("schema creation should not happen during app startup")
+
+    monkeypatch.setattr(Base.metadata, "create_all", fail_create_all)
+
+    app = create_app()
+
+    assert app.title == "amsz-task-service"
