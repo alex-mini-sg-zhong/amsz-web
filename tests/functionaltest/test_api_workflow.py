@@ -94,6 +94,110 @@ def test_submit_then_worker_executes_task(client) -> None:
         assert task.lease_owner is None
 
 
+def test_batch_task_creates_children_and_aggregates(client) -> None:
+    create_response = client.post(
+        "/api/v1/tasks",
+        headers={"X-API-Key": "test-key", "X-Client-Id": "tester"},
+        json={
+            "task_type": "batch.sleep.echo",
+            "queue_name": "default",
+            "payload": {
+                "items": [
+                    {"seconds": 0, "echo": "a"},
+                    {"seconds": 0, "echo": "b"},
+                    {"seconds": 0, "echo": "c"},
+                ]
+            },
+        },
+    )
+    assert create_response.status_code == 202
+    parent_task_id = create_response.json()["task_id"]
+    assert create_response.json()["status"] == "PARTIALLY_RUNNING"
+
+    detail = client.get(
+        f"/api/v1/tasks/{parent_task_id}",
+        headers={"X-API-Key": "test-key"},
+    )
+    assert detail.status_code == 200
+    assert detail.json()["total_children"] == 2
+    assert detail.json()["task_role"] == "parent"
+
+    children_response = client.get(
+        f"/api/v1/tasks/{parent_task_id}/children",
+        headers={"X-API-Key": "test-key"},
+    )
+    assert children_response.status_code == 200
+    assert len(children_response.json()) == 2
+
+    runner = WorkerRunner(queue_name="default", concurrency=2)
+    first_batch = runner.run_once(wait_for_completion=True)
+    second_batch = runner.run_once(wait_for_completion=True)
+    assert first_batch == 2
+    assert second_batch == 1
+
+    final_detail = client.get(
+        f"/api/v1/tasks/{parent_task_id}",
+        headers={"X-API-Key": "test-key"},
+    )
+    assert final_detail.status_code == 200
+    assert final_detail.json()["status"] == "SUCCEEDED"
+    assert final_detail.json()["succeeded_children"] == 2
+    assert final_detail.json()["failed_children"] == 0
+    assert final_detail.json()["running_children"] == 0
+    assert final_detail.json()["result"]["total_items"] == 3
+
+    final_children = client.get(
+        f"/api/v1/tasks/{parent_task_id}/children",
+        headers={"X-API-Key": "test-key"},
+    )
+    assert len(final_children.json()) == 3
+    assert final_children.json()[-1]["task_role"] == "aggregate"
+
+
+def test_batch_task_failure_marks_parent_failed(client) -> None:
+    create_response = client.post(
+        "/api/v1/tasks",
+        headers={"X-API-Key": "test-key", "X-Client-Id": "tester"},
+        json={
+            "task_type": "batch.sleep.echo",
+            "queue_name": "default",
+            "payload": {
+                "items": [
+                    {"seconds": -1, "echo": "bad"},
+                    {"seconds": 0, "echo": "good"},
+                ]
+            },
+        },
+    )
+    assert create_response.status_code == 202
+    parent_task_id = create_response.json()["task_id"]
+
+    runner = WorkerRunner(queue_name="default", concurrency=1)
+    runner.run_once(wait_for_completion=True)
+
+    detail = client.get(
+        f"/api/v1/tasks/{parent_task_id}",
+        headers={"X-API-Key": "test-key"},
+    )
+    assert detail.status_code == 200
+    assert detail.json()["status"] == "FAILED"
+    assert detail.json()["failed_children"] == 1
+
+
+def test_internal_task_type_cannot_be_submitted(client) -> None:
+    response = client.post(
+        "/api/v1/tasks",
+        headers={"X-API-Key": "test-key"},
+        json={
+            "task_type": "batch.sleep.echo.shard",
+            "queue_name": "default",
+            "payload": {"items": [{"seconds": 0, "echo": "hello"}]},
+        },
+    )
+
+    assert response.status_code == 400
+
+
 def test_missing_schema_does_not_trigger_implicit_creation(monkeypatch, tmp_path) -> None:
     empty_db_path = tmp_path / "empty.db"
     monkeypatch.setenv("DATABASE_URL", f"sqlite+pysqlite:///{empty_db_path}")

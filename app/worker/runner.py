@@ -9,10 +9,12 @@ from app.core.config import get_settings
 from app.core.app_logging import get_logger
 from app.core.time import utc_now
 from app.db.session import session_scope
-from app.domain.enums import AttemptStatus
+from app.domain.enums import AttemptStatus, TaskRole
 from app.domain.exceptions import NonRetryableTaskError, RetryableTaskError, TaskError
 from app.repositories.task_repository import ClaimedTask, TaskRepository
 from app.services.task_handlers import TaskContext, TaskHandler, build_handler_registry
+
+AGGREGATE_TASK_TYPE = "batch.sleep.echo.aggregate"
 
 
 class WorkerRunner:
@@ -92,23 +94,32 @@ class WorkerRunner:
                 task_type=task.task_type,
                 attempt_no=task.attempt_no,
                 worker_id=self.worker_id,
+                parent_task_id=task.parent_task_id,
                 cancel_event=cancel_event,
                 progress_callback=lambda progress, stage: self._update_progress(
                     task.id,
                     progress,
                     stage,
                 ),
-                cancel_check=lambda: self._is_cancel_requested(task.id),
+                cancel_check=lambda: self._is_cancel_requested(task.id, task.parent_task_id),
+                child_result_loader=self._load_child_results,
             )
             result = handler(task.payload, context)
+            aggregate_created_by: str | None = None
             with session_scope() as session:
                 repository = TaskRepository(session)
-                repository.mark_succeeded(
+                completed_task = repository.mark_succeeded(
                     task_id=task.id,
                     attempt_no=task.attempt_no,
                     worker_id=self.worker_id,
                     result=result,
                 )
+                aggregate_created_by = completed_task.created_by
+            self._handle_post_success(
+                task=task,
+                result=result,
+                aggregate_created_by=aggregate_created_by,
+            )
             logger.info("Task succeeded")
         except RetryableTaskError as exc:
             next_run = utc_now() + self._compute_backoff(task.attempt_no)
@@ -125,6 +136,7 @@ class WorkerRunner:
                         error_message=exc.message,
                         scheduled_at=next_run,
                     )
+                self._handle_post_child_update(task)
                 logger.info("Task scheduled for retry")
         except NonRetryableTaskError as exc:
             if exc.error_code == "TASK_CANCELED":
@@ -158,7 +170,7 @@ class WorkerRunner:
                 if not renewed:
                     cancel_event.set()
                     return
-                if repository.is_cancel_requested(task.id):
+                if repository.is_cancel_requested(task.id, task.parent_task_id):
                     cancel_event.set()
 
     def _update_progress(self, task_id: int, progress: int, stage: str | None) -> None:
@@ -171,10 +183,15 @@ class WorkerRunner:
                 current_stage=stage,
             )
 
-    def _is_cancel_requested(self, task_id: int) -> bool:
+    def _is_cancel_requested(self, task_id: int, parent_task_id: int | None) -> bool:
         with session_scope() as session:
             repository = TaskRepository(session)
-            return repository.is_cancel_requested(task_id)
+            return repository.is_cancel_requested(task_id, parent_task_id)
+
+    def _load_child_results(self, parent_task_id: int) -> list[dict[str, object]]:
+        with session_scope() as session:
+            repository = TaskRepository(session)
+            return repository.load_child_results(parent_task_id)
 
     def _mark_failed(self, task: ClaimedTask, error_code: str, error_message: str) -> None:
         with session_scope() as session:
@@ -187,6 +204,7 @@ class WorkerRunner:
                 error_message=error_message,
                 attempt_status=AttemptStatus.FAILED,
             )
+        self._handle_post_failure(task, error_code, error_message)
 
     def _mark_dead(self, task: ClaimedTask, error_code: str, error_message: str) -> None:
         with session_scope() as session:
@@ -198,6 +216,7 @@ class WorkerRunner:
                 error_code=error_code,
                 error_message=error_message,
             )
+        self._handle_post_failure(task, error_code, error_message)
 
     def _mark_canceled(self, task: ClaimedTask) -> None:
         with session_scope() as session:
@@ -207,6 +226,68 @@ class WorkerRunner:
                 attempt_no=task.attempt_no,
                 worker_id=self.worker_id,
             )
+        self._handle_post_child_update(task)
+
+    def _handle_post_success(
+        self,
+        *,
+        task: ClaimedTask,
+        result: dict[str, object] | None,
+        aggregate_created_by: str | None,
+    ) -> None:
+        if task.task_role == TaskRole.CHILD and task.parent_task_id is not None:
+            self._handle_post_child_update(
+                task,
+                aggregate_created_by=aggregate_created_by,
+            )
+            return
+
+        if task.task_role == TaskRole.AGGREGATE and task.parent_task_id is not None:
+            with session_scope() as session:
+                repository = TaskRepository(session)
+                repository.mark_parent_succeeded(
+                    parent_task_id=task.parent_task_id,
+                    result=result,
+                )
+
+    def _handle_post_failure(
+        self,
+        task: ClaimedTask,
+        error_code: str,
+        error_message: str,
+    ) -> None:
+        if task.task_role == TaskRole.CHILD and task.parent_task_id is not None:
+            self._handle_post_child_update(task)
+            return
+
+        if task.task_role == TaskRole.AGGREGATE and task.parent_task_id is not None:
+            with session_scope() as session:
+                repository = TaskRepository(session)
+                repository.mark_parent_failed(
+                    parent_task_id=task.parent_task_id,
+                    error_code=error_code,
+                    error_message=error_message,
+                )
+
+    def _handle_post_child_update(
+        self,
+        task: ClaimedTask,
+        aggregate_created_by: str | None = None,
+    ) -> None:
+        if task.task_role == TaskRole.CHILD and task.parent_task_id is not None:
+            with session_scope() as session:
+                repository = TaskRepository(session)
+                repository.refresh_parent_state(task.parent_task_id)
+                if aggregate_created_by is not None:
+                    repository.schedule_aggregate_task_if_ready(
+                        parent_task_id=task.parent_task_id,
+                        aggregate_task_type=AGGREGATE_TASK_TYPE,
+                        queue_name=task.queue_name,
+                        priority=task.priority,
+                        max_attempts=task.max_attempts,
+                        timeout_seconds=task.timeout_seconds,
+                        created_by=aggregate_created_by,
+                    )
 
     @staticmethod
     def _compute_backoff(attempt_no: int) -> timedelta:

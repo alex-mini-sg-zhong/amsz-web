@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     worker_lease_seconds: int = 30
     worker_heartbeat_interval_seconds: int = 10
     worker_recover_limit: int = 100
+    task_fanout_shard_size: int = 2
+    task_fanout_max_children: int = 10
 
 
 @lru_cache(maxsize=1)

@@ -6,6 +6,9 @@ from enum import Enum
 class TaskStatus(str, Enum):
     PENDING = "PENDING"
     RUNNING = "RUNNING"
+    DISPATCHING = "DISPATCHING"
+    PARTIALLY_RUNNING = "PARTIALLY_RUNNING"
+    AGGREGATING = "AGGREGATING"
     RETRY_WAIT = "RETRY_WAIT"
     SUCCEEDED = "SUCCEEDED"
     FAILED = "FAILED"
@@ -20,3 +23,9 @@ class AttemptStatus(str, Enum):
     CANCELED = "CANCELED"
     TIMEOUT = "TIMEOUT"
 
+
+class TaskRole(str, Enum):
+    STANDALONE = "standalone"
+    PARENT = "parent"
+    CHILD = "child"
+    AGGREGATE = "aggregate"

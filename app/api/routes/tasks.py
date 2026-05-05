@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 from app.api.dependencies import get_request_id, get_task_service, require_api_key
 from app.schemas.task import (
     TaskCancelResponse,
+    TaskChildResponse,
     TaskCreateRequest,
     TaskCreateResponse,
     TaskDetailResponse,
@@ -31,7 +32,13 @@ def create_task(
     request_id: str = Depends(get_request_id),
 ) -> TaskCreateResponse:
     created_by = request.headers.get("X-Client-Id")
-    task_id, task_status, created = service.create_task(payload, created_by, request_id)
+    try:
+        task_id, task_status, created = service.create_task(payload, created_by, request_id)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
     if not created:
         response.status_code = status.HTTP_200_OK
     return TaskCreateResponse(
@@ -58,6 +65,8 @@ def get_task(
         task_id=task.id,
         task_type=task.task_type,
         queue_name=task.queue_name,
+        task_role=task.task_role.value,
+        parent_task_id=task.parent_task_id,
         status=task.status.value,
         progress=task.progress,
         current_stage=task.current_stage,
@@ -66,6 +75,11 @@ def get_task(
         error_code=task.error_code,
         error_message=task.error_message,
         result=task.result_json,
+        total_children=task.total_children,
+        succeeded_children=task.succeeded_children,
+        failed_children=task.failed_children,
+        running_children=task.running_children,
+        child_summary=task.child_summary,
         created_at=task.created_at,
         started_at=task.started_at,
         finished_at=task.finished_at,
@@ -99,6 +113,7 @@ def list_tasks(
             task_id=task.id,
             task_type=task.task_type,
             queue_name=task.queue_name,
+            task_role=task.task_role.value,
             status=task.status.value,
             progress=task.progress,
             created_at=task.created_at,
@@ -169,4 +184,36 @@ def list_task_events(
             created_at=event.created_at,
         )
         for event in events
+    ]
+
+
+@router.get(
+    "/{task_id}/children",
+    response_model=list[TaskChildResponse],
+    dependencies=[Depends(require_api_key)],
+)
+def list_task_children(
+    task_id: int,
+    service: TaskService = Depends(get_task_service),
+) -> list[TaskChildResponse]:
+    task = service.get_task(task_id)
+    if task is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+    children = service.list_children(task_id)
+    return [
+        TaskChildResponse(
+            task_id=child.id,
+            task_type=child.task_type,
+            task_role=child.task_role.value,
+            parent_task_id=child.parent_task_id,
+            status=child.status.value,
+            shard_index=child.shard_index,
+            shard_key=child.shard_key,
+            progress=child.progress,
+            error_code=child.error_code,
+            error_message=child.error_message,
+            created_at=child.created_at,
+            finished_at=child.finished_at,
+        )
+        for child in children
     ]

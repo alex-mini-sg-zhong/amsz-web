@@ -28,6 +28,8 @@ class TaskDetailResponse(BaseModel):
     task_id: int
     task_type: str
     queue_name: str
+    task_role: str
+    parent_task_id: int | None
     status: str
     progress: int
     current_stage: str | None
@@ -36,6 +38,11 @@ class TaskDetailResponse(BaseModel):
     error_code: str | None
     error_message: str | None
     result: dict[str, Any] | None
+    total_children: int
+    succeeded_children: int
+    failed_children: int
+    running_children: int
+    child_summary: dict[str, Any] | None
     created_at: datetime
     started_at: datetime | None
     finished_at: datetime | None
@@ -66,7 +73,23 @@ class TaskListItemResponse(BaseModel):
     task_id: int
     task_type: str
     queue_name: str
+    task_role: str
     status: str
     progress: int
+    created_at: datetime
+    finished_at: datetime | None
+
+
+class TaskChildResponse(BaseModel):
+    task_id: int
+    task_type: str
+    task_role: str
+    parent_task_id: int | None
+    status: str
+    shard_index: int | None
+    shard_key: str | None
+    progress: int
+    error_code: str | None
+    error_message: str | None
     created_at: datetime
     finished_at: datetime | None

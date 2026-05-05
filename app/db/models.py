@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.db.base import Base
-from app.domain.enums import AttemptStatus, TaskStatus
+from app.domain.enums import AttemptStatus, TaskRole, TaskStatus
 
 PKInt = Integer().with_variant(Integer, "sqlite")
 
@@ -29,15 +29,24 @@ class Task(Base):
         Index("idx_task_lease", "status", "lease_until"),
         Index("idx_task_biz", "task_type", "biz_key"),
         Index("idx_task_created", "created_at"),
+        Index("idx_task_parent_dispatch", "parent_task_id", "status", "scheduled_at"),
     )
 
     id: Mapped[int] = mapped_column(PKInt, primary_key=True, autoincrement=True)
     task_type: Mapped[str] = mapped_column(String(64), nullable=False)
     queue_name: Mapped[str] = mapped_column(String(32), nullable=False, default="default")
+    task_role: Mapped[TaskRole] = mapped_column(
+        SAEnum(TaskRole, native_enum=False, length=16),
+        default=TaskRole.STANDALONE,
+        nullable=False,
+    )
+    parent_task_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     biz_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
     idempotency_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    shard_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    shard_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
     status: Mapped[TaskStatus] = mapped_column(
-        SAEnum(TaskStatus, native_enum=False, length=16),
+        SAEnum(TaskStatus, native_enum=False, length=32),
         default=TaskStatus.PENDING,
         nullable=False,
         index=True,
@@ -49,6 +58,16 @@ class Task(Base):
     error_message: Mapped[str | None] = mapped_column(String(512), nullable=True)
     progress: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     current_stage: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    total_children: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    succeeded_children: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failed_children: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    running_children: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    child_summary: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    aggregation_dispatched: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
     attempt_no: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
     timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=3600)
@@ -121,8 +140,8 @@ class TaskEvent(Base):
     id: Mapped[int] = mapped_column(PKInt, primary_key=True, autoincrement=True)
     task_id: Mapped[int] = mapped_column(ForeignKey("task.id"), nullable=False, index=True)
     event_type: Mapped[str] = mapped_column(String(32), nullable=False)
-    from_status: Mapped[str | None] = mapped_column(String(16), nullable=True)
-    to_status: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    from_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    to_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
     message: Mapped[str | None] = mapped_column(String(255), nullable=True)
     event_payload: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
