@@ -6,7 +6,7 @@ import uvicorn
 
 from app.api.app import create_app
 from app.core.config import get_settings
-from app.core.logging import configure_logging
+from app.core.app_logging import configure_logging, get_logger
 from app.runtime.combined import CombinedRunner
 from app.worker.runner import WorkerRunner
 
@@ -31,34 +31,39 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     settings = get_settings()
     configure_logging(settings.log_level)
+    logger = get_logger("app.main")
 
     parser = build_parser()
     args = parser.parse_args()
 
-    if args.mode == "api":
-        uvicorn.run(
-            create_app(),
-            host=settings.api_host,
-            port=settings.api_port,
-            access_log=False,
-            log_config=None,
-        )
-        return
+    try:
+        if args.mode == "api":
+            uvicorn.run(
+                create_app(),
+                host=settings.api_host,
+                port=settings.api_port,
+                access_log=False,
+                log_config=None,
+            )
+            return
 
-    queue_name = args.queue_name or settings.worker_queue
-    concurrency = args.concurrency or settings.worker_concurrency
+        queue_name = args.queue_name or settings.worker_queue
+        concurrency = args.concurrency or settings.worker_concurrency
 
-    if args.mode == "combined":
-        runner = CombinedRunner(
-            settings=settings,
-            queue_name=queue_name,
-            concurrency=concurrency,
-        )
+        if args.mode == "combined":
+            runner = CombinedRunner(
+                settings=settings,
+                queue_name=queue_name,
+                concurrency=concurrency,
+            )
+            runner.run_forever()
+            return
+
+        runner = WorkerRunner(queue_name=queue_name, concurrency=concurrency)
         runner.run_forever()
+    except KeyboardInterrupt:
+        logger.info("Service stopped by user interrupt")
         return
-
-    runner = WorkerRunner(queue_name=queue_name, concurrency=concurrency)
-    runner.run_forever()
 
 
 if __name__ == "__main__":

@@ -8,7 +8,7 @@ from collections.abc import Mapping
 from time import sleep
 
 from app.core.config import Settings
-from app.core.logging import get_logger
+from app.core.app_logging import get_logger
 
 
 class CombinedRunner:

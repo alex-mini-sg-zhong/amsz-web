@@ -6,7 +6,7 @@ from threading import Event, Thread
 from time import sleep
 
 from app.core.config import get_settings
-from app.core.logging import get_logger
+from app.core.app_logging import get_logger
 from app.core.time import utc_now
 from app.db.session import session_scope
 from app.domain.enums import AttemptStatus

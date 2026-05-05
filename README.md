@@ -35,6 +35,8 @@ export DATABASE_URL="sqlite+pysqlite:///./amsz.db"
 
 如果 `WORKER_ID` 未设置，系统会自动使用 `${POD_NAME}-worker`。
 默认 `AUTO_CREATE_TABLES=false`，生产运行时不会自动执行 schema 变更。
+默认日志会同时输出到控制台和 `data/amsz-task-service.log`，单文件 50MB 滚动。
+日志时间格式统一为 ISO 8601，包含毫秒和时区偏移。
 
 ## 启动 API
 ```bash

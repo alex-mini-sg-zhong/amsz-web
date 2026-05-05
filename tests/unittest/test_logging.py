@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
+import re
 
 from fastapi.testclient import TestClient
 
 from app.api.app import create_app
+from app.core.config import get_settings
+from app.core.app_logging import configure_logging
 from app.db.base import Base
-from app.core.logging import configure_logging
 
 
 def test_configure_logging_supports_third_party_logger(caplog) -> None:
@@ -18,6 +21,7 @@ def test_configure_logging_supports_third_party_logger(caplog) -> None:
     assert "startup complete" in caplog.text
     assert "request_id=-" in caplog.text
     assert "service=amsz-task-service" in caplog.text
+    assert re.search(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}[+-]\d{2}:\d{2}", caplog.text)
 
 
 def test_request_logging_uses_unified_fields(caplog) -> None:
@@ -43,3 +47,34 @@ def test_create_app_does_not_attempt_schema_creation(monkeypatch) -> None:
     app = create_app()
 
     assert app.title == "amsz-task-service"
+
+
+def test_alembic_logger_uses_unified_format(caplog) -> None:
+    configure_logging("INFO")
+
+    with caplog.at_level(logging.INFO):
+        logging.getLogger("alembic.runtime.migration").info("migration started")
+
+    assert "logger=alembic.runtime.migration" in caplog.text
+    assert "message=migration started" in caplog.text
+
+
+def test_configure_logging_writes_to_rotating_file(monkeypatch, tmp_path) -> None:
+    log_dir = tmp_path / "data"
+    monkeypatch.setenv("LOG_DIR", str(log_dir))
+    monkeypatch.setenv("LOG_FILE_MAX_BYTES", "256")
+    monkeypatch.setenv("LOG_FILE_BACKUP_COUNT", "2")
+    get_settings.cache_clear()
+
+    configure_logging("INFO")
+    logger = logging.getLogger("test.rotating")
+
+    for _ in range(40):
+        logger.info("rotating-log-entry %s", "x" * 40)
+
+    for handler in logging.getLogger().handlers:
+        handler.flush()
+
+    assert (log_dir / "amsz-task-service.log").exists()
+    rotated_files = list(log_dir.glob("amsz-task-service.log.*"))
+    assert rotated_files

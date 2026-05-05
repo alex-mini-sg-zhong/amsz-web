@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.core.logging import get_logger
+from app.core.app_logging import get_logger
 from app.core.time import utc_now
 from app.repositories.task_repository import TaskRepository
 from app.schemas.task import TaskCreateRequest

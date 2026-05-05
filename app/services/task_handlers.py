@@ -5,7 +5,7 @@ from threading import Event
 from time import sleep
 from typing import Any, Callable, Protocol
 
-from app.core.logging import get_logger
+from app.core.app_logging import get_logger
 from app.domain.exceptions import NonRetryableTaskError, RetryableTaskError
 
 

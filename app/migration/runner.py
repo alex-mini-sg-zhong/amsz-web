@@ -6,7 +6,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Connection, Engine
 
 from app.core.config import get_settings
-from app.core.logging import configure_logging, get_logger
+from app.core.app_logging import configure_logging, get_logger
 
 
 class SchemaMigrationRunner:

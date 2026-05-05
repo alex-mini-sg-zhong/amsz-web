@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -16,6 +17,10 @@ class Settings(BaseSettings):
     app_name: str = "amsz-task-service"
     app_env: str = "dev"
     log_level: str = "INFO"
+    log_dir: str = str(Path("data"))
+    log_file_name: str = "amsz-task-service.log"
+    log_file_max_bytes: int = 50 * 1024 * 1024
+    log_file_backup_count: int = 5
 
     api_host: str = "0.0.0.0"
     api_port: int = 8200
