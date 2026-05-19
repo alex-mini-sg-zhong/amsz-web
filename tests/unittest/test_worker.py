@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.core.config import get_settings
+from app.core.config import clear_settings_caches
 from app.db.base import Base
 from app.db.session import session_scope
 from app.repositories.task_repository import TaskRepository
@@ -58,14 +58,12 @@ def test_worker_moves_retryable_task_to_retry_wait() -> None:
         assert task.status.value == "RETRY_WAIT"
 
 
-def test_worker_runner_defaults_worker_id_from_pod_name(monkeypatch) -> None:
-    monkeypatch.setenv("WORKER_ID", "")
-    monkeypatch.setenv("POD_NAME", "pod-runtime")
-    get_settings.cache_clear()
+def test_worker_runner_uses_runtime_worker_id() -> None:
+    clear_settings_caches()
 
     runner = WorkerRunner(queue_name="default", concurrency=1)
 
-    assert runner.worker_id == "pod-runtime-worker"
+    assert runner.worker_id == "worker-test"
 
 
 def test_worker_run_forever_does_not_attempt_schema_creation(monkeypatch) -> None:

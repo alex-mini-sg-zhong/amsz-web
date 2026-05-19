@@ -7,7 +7,7 @@ import sys
 from collections.abc import Mapping
 from time import sleep
 
-from app.core.config import Settings
+from app.core.config import RuntimeSettings
 from app.core.app_logging import get_logger
 
 
@@ -15,7 +15,7 @@ class CombinedRunner:
     def __init__(
         self,
         *,
-        settings: Settings,
+        settings: RuntimeSettings,
         queue_name: str,
         concurrency: int,
         popen_factory: type[subprocess.Popen[bytes]] | object = subprocess.Popen,
@@ -49,15 +49,16 @@ class CombinedRunner:
 
     def _start_children(self) -> None:
         self.logger.info("Starting combined runtime")
+        shared_env = self._build_child_env()
         self.api_process = self._spawn_process(
             name="api",
             command=self._build_api_command(),
-            env=os.environ.copy(),
+            env=shared_env,
         )
         self.worker_process = self._spawn_process(
             name="worker",
             command=self._build_worker_command(),
-            env=self._build_worker_env(),
+            env=shared_env,
         )
 
     def _spawn_process(
@@ -88,12 +89,8 @@ class CombinedRunner:
             str(self.concurrency),
         ]
 
-    def _build_worker_env(self) -> dict[str, str]:
-        env = dict(os.environ)
-        env.setdefault("POD_NAME", self.settings.pod_name)
-        if not env.get("WORKER_ID"):
-            env["WORKER_ID"] = f"{env['POD_NAME']}-worker"
-        return env
+    def _build_child_env(self) -> dict[str, str]:
+        return dict(os.environ)
 
     def _monitor_children(self) -> None:
         while True:
@@ -138,10 +135,7 @@ class CombinedRunner:
             return
 
         self._stopping = True
-        for name, process in (
-            ("api", self.api_process),
-            ("worker", self.worker_process),
-        ):
+        for name, process in (("api", self.api_process), ("worker", self.worker_process)):
             if process is None or process.poll() is not None:
                 continue
             signal_name = signal.Signals(signum).name
@@ -163,13 +157,8 @@ class CombinedRunner:
             sleep(0.1)
             deadline -= 0.1
 
-        for name, process in (
-            ("api", self.api_process),
-            ("worker", self.worker_process),
-        ):
+        for name, process in (("api", self.api_process), ("worker", self.worker_process)):
             if process is None or process.poll() is not None:
                 continue
-            self.logger.warning(
-                f"Force killing child process name={name} pid={process.pid}"
-            )
+            self.logger.warning(f"Force killing child process name={name} pid={process.pid}")
             process.kill()

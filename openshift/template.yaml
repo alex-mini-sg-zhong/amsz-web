@@ -9,8 +9,6 @@ parameters:
     value: dev
   - name: IMAGE
     required: true
-  - name: LOG_LEVEL
-    value: INFO
   - name: REPLICAS
     value: "1"
   - name: WORKER_QUEUE
@@ -22,21 +20,6 @@ parameters:
   - name: DATABASE_URL
     required: true
 objects:
-  - apiVersion: v1
-    kind: ConfigMap
-    metadata:
-      name: ${APP_NAME}-config
-      labels:
-        app: ${APP_NAME}
-    data:
-      APP_ENV: ${APP_ENV}
-      LOG_LEVEL: ${LOG_LEVEL}
-      API_HOST: 0.0.0.0
-      API_PORT: "8200"
-      AUTO_CREATE_TABLES: "false"
-      POD_NAME: ${APP_NAME}
-      WORKER_QUEUE: ${WORKER_QUEUE}
-      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY}
   - apiVersion: v1
     kind: Secret
     metadata:
@@ -98,12 +81,20 @@ objects:
                 - app.main
                 - combined
               envFrom:
-                - configMapRef:
-                    name: ${APP_NAME}-config
                 - secretRef:
                     name: ${APP_NAME}-secret
               env:
+                - name: APP_ENV
+                  value: ${APP_ENV}
+                - name: WORKER_QUEUE
+                  value: ${WORKER_QUEUE}
+                - name: WORKER_CONCURRENCY
+                  value: ${WORKER_CONCURRENCY}
                 - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: WORKER_ID
                   valueFrom:
                     fieldRef:
                       fieldPath: metadata.name

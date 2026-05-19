@@ -8,8 +8,6 @@ steps:
     environment:
       DATABASE_URL:
         from_secret: amsz_database_url
-      LOG_LEVEL:
-        value: INFO
     commands:
       - pip install --no-cache-dir -r requirements-dev.txt
       - chmod +x ci/run_migration.sh

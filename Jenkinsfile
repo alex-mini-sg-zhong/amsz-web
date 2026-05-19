@@ -7,7 +7,6 @@ pipeline {
         string(name: 'OPENSHIFT_NAMESPACE', defaultValue: 'amsz-dev')
         string(name: 'IMAGE_REGISTRY', defaultValue: 'image-registry.openshift-image-registry.svc:5000')
         string(name: 'APP_ENV', defaultValue: 'dev')
-        string(name: 'LOG_LEVEL', defaultValue: 'INFO')
         string(name: 'REPLICAS', defaultValue: '1')
         string(name: 'WORKER_QUEUE', defaultValue: 'default')
         string(name: 'WORKER_CONCURRENCY', defaultValue: '2')
@@ -71,7 +70,6 @@ pipeline {
                           -p APP_NAME="${APP_NAME}" \
                           -p APP_ENV="${APP_ENV}" \
                           -p IMAGE="${IMAGE_REF}" \
-                          -p LOG_LEVEL="${LOG_LEVEL}" \
                           -p REPLICAS="${REPLICAS}" \
                           -p WORKER_QUEUE="${WORKER_QUEUE}" \
                           -p WORKER_CONCURRENCY="${WORKER_CONCURRENCY}" \

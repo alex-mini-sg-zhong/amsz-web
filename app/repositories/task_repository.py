@@ -12,7 +12,7 @@ from app.db.models import Task, TaskAttempt, TaskEvent
 from app.domain.enums import AttemptStatus, TaskRole, TaskStatus
 
 
-@dataclass(slots=True)
+@dataclass
 class ClaimedTask:
     id: int
     task_type: str
@@ -27,7 +27,7 @@ class ClaimedTask:
     shard_index: int | None
 
 
-@dataclass(slots=True)
+@dataclass
 class ChildTaskSpec:
     task_type: str
     payload: dict[str, Any]

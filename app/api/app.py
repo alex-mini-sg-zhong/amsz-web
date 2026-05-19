@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from app.api.middleware import RequestContextMiddleware
+from app.api.routes.runtime_config import router as runtime_config_router
 from app.api.routes.tasks import router as task_router
 from app.core.config import get_settings
 
@@ -12,6 +13,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title=settings.app_name)
     app.add_middleware(RequestContextMiddleware)
     app.include_router(task_router)
+    app.include_router(runtime_config_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:

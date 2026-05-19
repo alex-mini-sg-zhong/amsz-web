@@ -7,9 +7,10 @@ import re
 from fastapi.testclient import TestClient
 
 from app.api.app import create_app
-from app.core.config import get_settings
+from app.core.config import clear_settings_caches
 from app.core.app_logging import configure_logging
 from app.db.base import Base
+from tests.conftest import seed_active_runtime_config
 
 
 def test_configure_logging_supports_third_party_logger(caplog) -> None:
@@ -59,12 +60,16 @@ def test_alembic_logger_uses_unified_format(caplog) -> None:
     assert "message=migration started" in caplog.text
 
 
-def test_configure_logging_writes_to_rotating_file(monkeypatch, tmp_path) -> None:
+def test_configure_logging_writes_to_rotating_file(tmp_path) -> None:
     log_dir = tmp_path / "data"
-    monkeypatch.setenv("LOG_DIR", str(log_dir))
-    monkeypatch.setenv("LOG_FILE_MAX_BYTES", "256")
-    monkeypatch.setenv("LOG_FILE_BACKUP_COUNT", "2")
-    get_settings.cache_clear()
+    seed_active_runtime_config(
+        {
+            "log_dir": str(log_dir),
+            "log_file_max_bytes": 256,
+            "log_file_backup_count": 2,
+        }
+    )
+    clear_settings_caches()
 
     configure_logging("INFO")
     logger = logging.getLogger("test.rotating")
@@ -75,6 +80,6 @@ def test_configure_logging_writes_to_rotating_file(monkeypatch, tmp_path) -> Non
     for handler in logging.getLogger().handlers:
         handler.flush()
 
-    assert (log_dir / "amsz-task-service.log").exists()
-    rotated_files = list(log_dir.glob("amsz-task-service.log.*"))
+    assert (Path(log_dir) / "amsz-task-service.log").exists()
+    rotated_files = list(Path(log_dir).glob("amsz-task-service.log.*"))
     assert rotated_files

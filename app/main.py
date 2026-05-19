@@ -5,7 +5,7 @@ import argparse
 import uvicorn
 
 from app.api.app import create_app
-from app.core.config import get_settings
+from app.core.config import DEFAULT_LOG_LEVEL, get_settings
 from app.core.app_logging import configure_logging, get_logger
 from app.runtime.combined import CombinedRunner
 from app.worker.runner import WorkerRunner
@@ -30,7 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     settings = get_settings()
-    configure_logging(settings.log_level)
+    configure_logging(settings.log_level or DEFAULT_LOG_LEVEL)
     logger = get_logger("app.main")
 
     parser = build_parser()

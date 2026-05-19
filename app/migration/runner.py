@@ -5,7 +5,7 @@ from pathlib import Path
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Connection, Engine
 
-from app.core.config import get_settings
+from app.core.config import DEFAULT_LOG_LEVEL, get_bootstrap_settings
 from app.core.app_logging import configure_logging, get_logger
 
 
@@ -61,10 +61,7 @@ class SchemaMigrationRunner:
         return True
 
     def _release_named_lock(self, connection: Connection) -> None:
-        connection.execute(
-            text("SELECT RELEASE_LOCK(:lock_name)"),
-            {"lock_name": self.lock_name},
-        )
+        connection.execute(text("SELECT RELEASE_LOCK(:lock_name)"), {"lock_name": self.lock_name})
         self.logger.info("Schema migration lock released")
 
     def _run_upgrade(self, connection: Connection) -> None:
@@ -82,8 +79,8 @@ class SchemaMigrationRunner:
 
 
 def main() -> None:
-    settings = get_settings()
-    configure_logging(settings.log_level)
+    settings = get_bootstrap_settings()
+    configure_logging(DEFAULT_LOG_LEVEL)
     runner = SchemaMigrationRunner(database_url=settings.database_url)
     runner.run()
 

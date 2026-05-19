@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import os
 import sqlite3
 
-from fastapi.testclient import TestClient
+import pytest
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.app import create_app
-from app.core.config import get_settings
+from app.core.config import clear_settings_caches
 from app.db.session import get_engine, get_session_factory, session_scope
 from app.repositories.task_repository import TaskRepository
 from app.worker.runner import WorkerRunner
@@ -198,26 +198,99 @@ def test_internal_task_type_cannot_be_submitted(client) -> None:
     assert response.status_code == 400
 
 
-def test_missing_schema_does_not_trigger_implicit_creation(monkeypatch, tmp_path) -> None:
-    empty_db_path = tmp_path / "empty.db"
-    monkeypatch.setenv("DATABASE_URL", f"sqlite+pysqlite:///{empty_db_path}")
-    monkeypatch.setenv("AUTO_CREATE_TABLES", "false")
-    get_settings.cache_clear()
-    get_engine.cache_clear()
-    get_session_factory.cache_clear()
-
-    client = TestClient(create_app(), raise_server_exceptions=False)
-    response = client.post(
-        "/api/v1/tasks",
+def test_get_active_runtime_config(client) -> None:
+    response = client.get(
+        "/api/v1/admin/runtime-config/active",
         headers={"X-API-Key": "test-key"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ACTIVE"
+    assert response.json()["config"]["api_key"] == "${API_KEY}"
+    assert response.json()["resolved_config"]["api_key"] == "test-key"
+
+
+def test_create_and_activate_runtime_config_revision(client) -> None:
+    active = client.get(
+        "/api/v1/admin/runtime-config/active",
+        headers={"X-API-Key": "test-key"},
+    )
+    base_revision_id = active.json()["revision_id"]
+    config = active.json()["config"]
+    config["task_fanout_shard_size"] = 3
+
+    create_response = client.post(
+        "/api/v1/admin/runtime-config/revisions",
+        headers={"X-API-Key": "test-key", "X-Client-Id": "tester"},
         json={
-            "task_type": "noop.success",
-            "queue_name": "default",
-            "payload": {"echo": "hello"},
+            "config": config,
+            "change_note": "increase shard size",
+            "base_revision_id": base_revision_id,
+        },
+    )
+    assert create_response.status_code == 201
+    revision_id = create_response.json()["revision_id"]
+    assert create_response.json()["status"] == "DRAFT"
+
+    activate_response = client.post(
+        f"/api/v1/admin/runtime-config/revisions/{revision_id}/activate",
+        headers={"X-API-Key": "test-key", "X-Client-Id": "tester"},
+    )
+    assert activate_response.status_code == 200
+
+    active_after = client.get(
+        "/api/v1/admin/runtime-config/active",
+        headers={"X-API-Key": "test-key"},
+    )
+    assert active_after.status_code == 200
+    assert active_after.json()["revision_id"] == revision_id
+    assert active_after.json()["resolved_config"]["task_fanout_shard_size"] == 3
+
+
+def test_plaintext_secret_field_is_rejected(client) -> None:
+    response = client.post(
+        "/api/v1/admin/runtime-config/revisions",
+        headers={"X-API-Key": "test-key", "X-Client-Id": "tester"},
+        json={
+            "config": {
+                "app_name": "amsz-task-service",
+                "app_env": "${APP_ENV}",
+                "log_level": "INFO",
+                "log_dir": "data",
+                "log_file_name": "amsz-task-service.log",
+                "log_file_max_bytes": 52428800,
+                "log_file_backup_count": 5,
+                "api_host": "0.0.0.0",
+                "api_port": 8200,
+                "api_key": "plaintext-secret",
+                "worker_id": "${WORKER_ID}",
+                "pod_name": "${POD_NAME}",
+                "worker_queue": "${WORKER_QUEUE}",
+                "worker_concurrency": "${WORKER_CONCURRENCY}",
+                "worker_poll_interval_seconds": 2.0,
+                "worker_claim_batch_size": 5,
+                "worker_lease_seconds": 30,
+                "worker_heartbeat_interval_seconds": 10,
+                "worker_recover_limit": 100,
+                "task_fanout_shard_size": 2,
+                "task_fanout_max_children": 10,
+            }
         },
     )
 
-    assert response.status_code == 500
+    assert response.status_code == 400
+    assert "Sensitive field 'api_key'" in response.json()["detail"]
+
+
+def test_missing_schema_does_not_trigger_implicit_creation(monkeypatch, tmp_path) -> None:
+    empty_db_path = tmp_path / "empty.db"
+    monkeypatch.setenv("DATABASE_URL", f"sqlite+pysqlite:///{empty_db_path}")
+    clear_settings_caches()
+    get_engine.cache_clear()
+    get_session_factory.cache_clear()
+
+    with pytest.raises(SQLAlchemyError):
+        create_app()
 
     with sqlite3.connect(empty_db_path) as connection:
         tables = connection.execute(

@@ -8,13 +8,13 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.core.config import get_settings
+from app.core.config import get_bootstrap_settings
 from app.db import models  # noqa: F401
 
 
 @lru_cache(maxsize=1)
 def get_engine() -> Engine:
-    settings = get_settings()
+    settings = get_bootstrap_settings()
     connect_args: dict[str, object] = {}
     if settings.database_url.startswith("sqlite"):
         connect_args["check_same_thread"] = False
@@ -36,6 +36,7 @@ def get_session_factory() -> sessionmaker[Session]:
         expire_on_commit=False,
         future=True,
     )
+
 
 @contextmanager
 def session_scope() -> Iterator[Session]:

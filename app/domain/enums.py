@@ -29,3 +29,9 @@ class TaskRole(str, Enum):
     PARENT = "parent"
     CHILD = "child"
     AGGREGATE = "aggregate"
+
+
+class ConfigRevisionStatus(str, Enum):
+    DRAFT = "DRAFT"
+    ACTIVE = "ACTIVE"
+    ARCHIVED = "ARCHIVED"

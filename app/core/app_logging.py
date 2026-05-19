@@ -5,7 +5,7 @@ from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from app.core.config import get_settings
+from app.core.config import get_logging_settings
 
 CONSOLE_HANDLER_NAME = "amsz_console"
 FILE_HANDLER_NAME = "amsz_file"
@@ -32,7 +32,7 @@ class DefaultContextFormatter(logging.Formatter):
         return timestamp.isoformat(timespec="milliseconds")
 
     def format(self, record: logging.LogRecord) -> str:
-        settings = get_settings()
+        settings = get_logging_settings()
         for field_name, default_value in DEFAULT_LOG_FIELDS.items():
             if not hasattr(record, field_name):
                 setattr(record, field_name, default_value)
@@ -44,7 +44,7 @@ class DefaultContextFormatter(logging.Formatter):
 
 
 def configure_logging(level: str) -> None:
-    settings = get_settings()
+    settings = get_logging_settings()
     root_logger = logging.getLogger()
     formatter = DefaultContextFormatter(
         fmt=(
@@ -67,7 +67,7 @@ def configure_logging(level: str) -> None:
     root_logger.setLevel(level.upper())
 
     _configure_console_handler(root_logger, formatter)
-    _configure_file_handler(root_logger, formatter)
+    _configure_file_handler(root_logger, formatter, settings)
 
     for handler in root_logger.handlers:
         handler.setFormatter(formatter)
@@ -99,8 +99,8 @@ def _configure_console_handler(
 def _configure_file_handler(
     root_logger: logging.Logger,
     formatter: logging.Formatter,
+    settings,
 ) -> None:
-    settings = get_settings()
     log_dir = Path(settings.log_dir)
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file_path = log_dir / settings.log_file_name
@@ -140,8 +140,9 @@ class ContextAdapter(logging.LoggerAdapter):
     def process(self, msg: str, kwargs: dict) -> tuple[str, dict]:
         extra = kwargs.setdefault("extra", {})
         merged = dict(DEFAULT_LOG_FIELDS)
-        merged["service"] = get_settings().app_name
-        merged["env"] = get_settings().app_env
+        settings = get_logging_settings()
+        merged["service"] = settings.app_name
+        merged["env"] = settings.app_env
         merged.update(self.extra)
         merged.update(extra)
         kwargs["extra"] = merged
@@ -153,6 +154,7 @@ def get_logger(name: str, **context: str | int | None) -> ContextAdapter:
         key: value if value is not None else "-"
         for key, value in context.items()
     }
-    normalized.setdefault("service", get_settings().app_name)
-    normalized.setdefault("env", get_settings().app_env)
+    settings = get_logging_settings()
+    normalized.setdefault("service", settings.app_name)
+    normalized.setdefault("env", settings.app_env)
     return ContextAdapter(logging.getLogger(name), normalized)

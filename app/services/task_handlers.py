@@ -14,7 +14,7 @@ class TaskHandler(Protocol):
         ...
 
 
-@dataclass(slots=True)
+@dataclass
 class TaskContext:
     task_id: int
     task_type: str

@@ -26,7 +26,7 @@ class WorkerRunner:
         handler_registry: dict[str, TaskHandler] | None = None,
     ) -> None:
         self.settings = get_settings()
-        self.worker_id = self.settings.worker_id or f"{self.settings.pod_name}-worker"
+        self.worker_id = self.settings.worker_id
         self.logger = get_logger(
             "app.worker.runner",
             worker_id=self.worker_id,

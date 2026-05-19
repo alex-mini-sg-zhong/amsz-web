@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import signal
 from collections.abc import Sequence
 
@@ -66,15 +67,14 @@ def test_combined_runner_starts_api_and_worker_with_expected_commands() -> None:
     assert popen_factory.calls[1][1]["WORKER_ID"] == "worker-test"
 
 
-def test_combined_runner_defaults_worker_id_from_pod_name(monkeypatch) -> None:
-    monkeypatch.delenv("WORKER_ID", raising=False)
-    get_settings.cache_clear()
+def test_combined_runner_passes_current_environment_to_children() -> None:
     settings = get_settings()
     runner = CombinedRunner(settings=settings, queue_name="default", concurrency=2)
 
-    env = runner._build_worker_env()
+    env = runner._build_child_env()
 
-    assert env["WORKER_ID"] == "pod-test-worker"
+    assert env["WORKER_ID"] == os.environ["WORKER_ID"]
+    assert env["POD_NAME"] == os.environ["POD_NAME"]
 
 
 def test_combined_runner_stops_other_child_when_one_exits() -> None:
