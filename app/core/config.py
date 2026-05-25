@@ -28,16 +28,8 @@ class RuntimeConfigError(RuntimeError):
 
 
 class BootstrapSettings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-    )
-
-    database_url: str = Field(
-        default="sqlite+pysqlite:///./amsz.db",
-        description="MySQL example: mysql+pymysql://user:pass@host:3306/dbname",
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=False)
+    database_url: str = Field(default="sqlite+pysqlite:///./amsz.db", description="MySQL example: mysql+pymysql://user:pass@host:3306/dbname")
 
 
 class RuntimeSettings(BaseModel):
@@ -65,6 +57,13 @@ class RuntimeSettings(BaseModel):
     worker_recover_limit: int = 100
     task_fanout_shard_size: int = 2
     task_fanout_max_children: int = 10
+    scheduler_enabled: bool = True
+    scheduler_tick_interval_seconds: float = 10.0
+    scheduler_max_due_schedules: int = 10
+    polymarket_base_url: str = "https://gamma-api.polymarket.com"
+    polymarket_request_timeout_seconds: float = 10.0
+    polymarket_catalog_limit: int = 200
+    polymarket_snapshot_limit: int = 100
 
 
 class LoggingSettings(BaseModel):
@@ -100,6 +99,13 @@ def default_runtime_config_template() -> dict[str, Any]:
         "worker_recover_limit": 100,
         "task_fanout_shard_size": 2,
         "task_fanout_max_children": 10,
+        "scheduler_enabled": True,
+        "scheduler_tick_interval_seconds": 10.0,
+        "scheduler_max_due_schedules": 10,
+        "polymarket_base_url": "https://gamma-api.polymarket.com",
+        "polymarket_request_timeout_seconds": 10.0,
+        "polymarket_catalog_limit": 200,
+        "polymarket_snapshot_limit": 100,
     }
 
 
@@ -127,14 +133,13 @@ def build_runtime_settings(template: dict[str, Any]) -> RuntimeSettings:
     resolved = resolve_config_placeholders(template)
     try:
         return RuntimeSettings.model_validate(resolved)
-    except Exception as exc:  # pragma: no cover - pydantic details exercised by tests
+    except Exception as exc:  # pragma: no cover
         raise RuntimeConfigError(f"Runtime configuration validation failed: {exc}") from exc
 
 
 def validate_runtime_config_template(template: dict[str, Any]) -> None:
     for field_name, value in template.items():
         _validate_template_value(field_name, value)
-
     for field_name in SECRET_FIELD_NAMES:
         if field_name not in template:
             raise RuntimeConfigError(f"Sensitive field '{field_name}' is missing from template")
@@ -169,12 +174,10 @@ def _validate_template_value(field_name: str, value: Any) -> None:
         for nested_name, nested_value in value.items():
             _validate_template_value(nested_name, nested_value)
         return
-
     if isinstance(value, list):
         for nested_value in value:
             _validate_template_value(field_name, nested_value)
         return
-
     if not isinstance(value, str):
         return
 
@@ -186,9 +189,7 @@ def _validate_template_value(field_name: str, value: Any) -> None:
         return
 
     if "${" in value:
-        raise RuntimeConfigError(
-            f"Field '{field_name}' contains an invalid placeholder expression"
-        )
+        raise RuntimeConfigError(f"Field '{field_name}' contains an invalid placeholder expression")
 
     if field_name in SECRET_FIELD_NAMES and value:
         raise RuntimeConfigError(f"Sensitive field '{field_name}' must use a placeholder")
@@ -196,10 +197,7 @@ def _validate_template_value(field_name: str, value: Any) -> None:
 
 def _resolve_template_value(value: Any) -> Any:
     if isinstance(value, dict):
-        return {
-            nested_key: _resolve_template_value(nested_value)
-            for nested_key, nested_value in value.items()
-        }
+        return {nested_key: _resolve_template_value(nested_value) for nested_key, nested_value in value.items()}
     if isinstance(value, list):
         return [_resolve_template_value(item) for item in value]
     if not isinstance(value, str):

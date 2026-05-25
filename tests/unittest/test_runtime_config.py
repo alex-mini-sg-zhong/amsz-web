@@ -12,6 +12,8 @@ def test_runtime_config_resolves_allowed_placeholders() -> None:
     assert settings.worker_id == "worker-test"
     assert settings.pod_name == "pod-test"
     assert settings.worker_profile == "default"
+    assert settings.scheduler_enabled is True
+    assert settings.polymarket_base_url == "https://gamma-api.polymarket.com"
 
 
 def test_runtime_config_rejects_missing_env_placeholder(monkeypatch) -> None:
