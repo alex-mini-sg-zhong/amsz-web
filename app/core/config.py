@@ -108,8 +108,8 @@ def get_bootstrap_settings() -> BootstrapSettings:
 
 @lru_cache(maxsize=1)
 def get_settings() -> RuntimeSettings:
-    from app.db.session import session_scope
-    from app.repositories.runtime_config_repository import RuntimeConfigRepository
+    from app.infrastructure.datasource.relational.session import session_scope
+    from app.infrastructure.repositories.runtime_config_repository import RuntimeConfigRepository
 
     with session_scope() as session:
         repository = RuntimeConfigRepository(session)

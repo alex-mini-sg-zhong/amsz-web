@@ -4,11 +4,14 @@ import argparse
 
 import uvicorn
 
-from app.api.app import create_app
-from app.core.config import DEFAULT_LOG_LEVEL, get_settings
-from app.core.app_logging import configure_logging, get_logger
-from app.runtime.combined import CombinedRunner
-from app.worker.runner import WorkerRunner
+from app.bootstrap.logging import configure_bootstrap_logging, configure_runtime_logging
+from app.bootstrap.migration import run_migration
+from app.bootstrap.runtime import load_runtime_settings
+from app.core.config import DEFAULT_LOG_LEVEL
+from app.core.app_logging import get_logger
+from app.infrastructure.runtime.combined import CombinedRunner
+from app.infrastructure.runtime.worker_runner import WorkerRunner
+from app.interfaces.http.app import create_app
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -16,6 +19,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="mode", required=True)
 
     subparsers.add_parser("api", help="Run FastAPI server")
+    subparsers.add_parser("migrate", help="Run schema migrations")
 
     worker_parser = subparsers.add_parser("worker", help="Run task worker")
     worker_parser.add_argument("--queue", dest="queue_name", default=None)
@@ -29,14 +33,21 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
-    settings = get_settings()
-    configure_logging(settings.log_level or DEFAULT_LOG_LEVEL)
-    logger = get_logger("app.main")
-
     parser = build_parser()
     args = parser.parse_args()
 
+    configure_bootstrap_logging(DEFAULT_LOG_LEVEL)
+    logger = get_logger("app.main")
+
     try:
+        if args.mode == "migrate":
+            run_migration()
+            return
+
+        settings = load_runtime_settings()
+        configure_runtime_logging(settings)
+        logger = get_logger("app.main")
+
         if args.mode == "api":
             uvicorn.run(
                 create_app(),

@@ -5,7 +5,7 @@ from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from app.core.config import get_logging_settings
+from app.core.config import LoggingSettings
 
 CONSOLE_HANDLER_NAME = "amsz_console"
 FILE_HANDLER_NAME = "amsz_file"
@@ -20,6 +20,8 @@ DEFAULT_LOG_FIELDS = {
     "duration_ms": "-",
     "client_ip": "-",
 }
+
+_CURRENT_LOGGING_SETTINGS = LoggingSettings()
 
 
 class DefaultContextFormatter(logging.Formatter):
@@ -43,8 +45,19 @@ class DefaultContextFormatter(logging.Formatter):
         return super().format(record)
 
 
-def configure_logging(level: str) -> None:
-    settings = get_logging_settings()
+def set_logging_settings(settings: LoggingSettings) -> None:
+    global _CURRENT_LOGGING_SETTINGS
+    _CURRENT_LOGGING_SETTINGS = settings
+
+
+def get_logging_settings() -> LoggingSettings:
+    return _CURRENT_LOGGING_SETTINGS
+
+
+def configure_logging(level: str, settings: LoggingSettings | None = None) -> None:
+    if settings is not None:
+        set_logging_settings(settings)
+    runtime_settings = get_logging_settings()
     root_logger = logging.getLogger()
     formatter = DefaultContextFormatter(
         fmt=(
@@ -67,7 +80,7 @@ def configure_logging(level: str) -> None:
     root_logger.setLevel(level.upper())
 
     _configure_console_handler(root_logger, formatter)
-    _configure_file_handler(root_logger, formatter, settings)
+    _configure_file_handler(root_logger, formatter, runtime_settings)
 
     for handler in root_logger.handlers:
         handler.setFormatter(formatter)
@@ -99,31 +112,41 @@ def _configure_console_handler(
 def _configure_file_handler(
     root_logger: logging.Logger,
     formatter: logging.Formatter,
-    settings,
+    settings: LoggingSettings,
 ) -> None:
     log_dir = Path(settings.log_dir)
-    log_dir.mkdir(parents=True, exist_ok=True)
     log_file_path = log_dir / settings.log_file_name
-
     existing_handler = _find_named_handler(root_logger, FILE_HANDLER_NAME)
-    expected_filename = str(log_file_path.resolve())
-    if isinstance(existing_handler, RotatingFileHandler):
-        if existing_handler.baseFilename != expected_filename:
+
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        expected_filename = str(log_file_path.resolve())
+        if isinstance(existing_handler, RotatingFileHandler):
+            if existing_handler.baseFilename != expected_filename:
+                root_logger.removeHandler(existing_handler)
+                existing_handler.close()
+                existing_handler = None
+
+        if existing_handler is None:
+            existing_handler = RotatingFileHandler(
+                filename=log_file_path,
+                maxBytes=settings.log_file_max_bytes,
+                backupCount=settings.log_file_backup_count,
+                encoding="utf-8",
+            )
+            existing_handler.name = FILE_HANDLER_NAME
+            root_logger.addHandler(existing_handler)
+
+        existing_handler.setFormatter(formatter)
+    except OSError as exc:
+        if existing_handler is not None and existing_handler in root_logger.handlers:
             root_logger.removeHandler(existing_handler)
             existing_handler.close()
-            existing_handler = None
-
-    if existing_handler is None:
-        existing_handler = RotatingFileHandler(
-            filename=log_file_path,
-            maxBytes=settings.log_file_max_bytes,
-            backupCount=settings.log_file_backup_count,
-            encoding="utf-8",
+        logging.getLogger("app.core.app_logging").warning(
+            "File logging disabled path=%s error=%s",
+            log_file_path,
+            exc,
         )
-        existing_handler.name = FILE_HANDLER_NAME
-        root_logger.addHandler(existing_handler)
-
-    existing_handler.setFormatter(formatter)
 
 
 def _find_named_handler(

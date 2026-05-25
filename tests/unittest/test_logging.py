@@ -7,7 +7,8 @@ import re
 from fastapi.testclient import TestClient
 
 from app.api.app import create_app
-from app.core.config import clear_settings_caches
+from app.bootstrap.logging import configure_runtime_logging
+from app.core.config import clear_settings_caches, get_settings
 from app.core.app_logging import configure_logging
 from app.db.base import Base
 from tests.conftest import seed_active_runtime_config
@@ -33,7 +34,7 @@ def test_request_logging_uses_unified_fields(caplog) -> None:
         response = client.get("/healthz")
 
     assert response.status_code == 200
-    assert "logger=app.api.request" in caplog.text
+    assert "logger=app.interfaces.http.request" in caplog.text
     assert "http_method=GET" in caplog.text
     assert "http_path=/healthz" in caplog.text
     assert "status_code=200" in caplog.text
@@ -71,7 +72,7 @@ def test_configure_logging_writes_to_rotating_file(tmp_path) -> None:
     )
     clear_settings_caches()
 
-    configure_logging("INFO")
+    configure_runtime_logging(get_settings())
     logger = logging.getLogger("test.rotating")
 
     for _ in range(40):

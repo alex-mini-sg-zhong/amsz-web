@@ -22,3 +22,21 @@ def test_main_handles_worker_keyboard_interrupt(monkeypatch, caplog) -> None:
         main.main()
 
     assert "Service stopped by user interrupt" in caplog.text
+
+
+def test_main_dispatches_migrate_without_loading_runtime_settings(monkeypatch) -> None:
+    monkeypatch.setattr(sys, "argv", ["app.main", "migrate"])
+    called = {"migrate": 0}
+
+    def fail_load_runtime_settings():
+        raise AssertionError("runtime settings should not be loaded for migrate")
+
+    def fake_run_migration() -> None:
+        called["migrate"] += 1
+
+    monkeypatch.setattr(main, "load_runtime_settings", fail_load_runtime_settings)
+    monkeypatch.setattr(main, "run_migration", fake_run_migration)
+
+    main.main()
+
+    assert called["migrate"] == 1

@@ -1,8 +1,3 @@
-from __future__ import annotations
+from app.infrastructure.datasource.relational.base import Base
 
-from sqlalchemy.orm import DeclarativeBase
-
-
-class Base(DeclarativeBase):
-    """Base declarative class."""
-
+__all__ = ["Base"]
