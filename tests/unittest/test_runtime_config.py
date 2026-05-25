@@ -11,6 +11,7 @@ def test_runtime_config_resolves_allowed_placeholders() -> None:
     assert settings.api_key == "test-key"
     assert settings.worker_id == "worker-test"
     assert settings.pod_name == "pod-test"
+    assert settings.worker_profile == "default"
 
 
 def test_runtime_config_rejects_missing_env_placeholder(monkeypatch) -> None:

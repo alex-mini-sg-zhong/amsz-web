@@ -56,6 +56,7 @@ class RuntimeSettings(BaseModel):
     worker_id: str
     pod_name: str
     worker_queue: str = "default"
+    worker_profile: str = "default"
     worker_concurrency: int = 2
     worker_poll_interval_seconds: float = 2.0
     worker_claim_batch_size: int = 5
@@ -90,6 +91,7 @@ def default_runtime_config_template() -> dict[str, Any]:
         "worker_id": "${WORKER_ID}",
         "pod_name": "${POD_NAME}",
         "worker_queue": "${WORKER_QUEUE}",
+        "worker_profile": "default",
         "worker_concurrency": "${WORKER_CONCURRENCY}",
         "worker_poll_interval_seconds": 2.0,
         "worker_claim_batch_size": 5,

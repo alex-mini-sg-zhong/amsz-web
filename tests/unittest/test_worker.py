@@ -79,3 +79,17 @@ def test_worker_run_forever_does_not_attempt_schema_creation(monkeypatch) -> Non
 
     with pytest.raises(RuntimeError, match="stop-loop"):
         runner.run_forever()
+
+
+
+def test_worker_runner_uses_runtime_worker_profile(monkeypatch) -> None:
+    from tests.conftest import seed_active_runtime_config
+
+    seed_active_runtime_config({"worker_profile": "basic"})
+    clear_settings_caches()
+
+    runner = WorkerRunner(queue_name="default", concurrency=1)
+
+    assert runner.worker_profile == "basic"
+    assert "noop.success" in runner.handler_registry
+    assert "batch.sleep.echo.shard" not in runner.handler_registry

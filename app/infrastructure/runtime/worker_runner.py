@@ -5,16 +5,15 @@ from datetime import timedelta
 from threading import Event, Thread
 from time import sleep
 
-from app.core.config import get_settings
-from app.core.app_logging import get_logger
-from app.core.time import utc_now
-from app.infrastructure.datasource.relational.session import session_scope
-from app.domain.enums import AttemptStatus, TaskRole
-from app.domain.exceptions import NonRetryableTaskError, RetryableTaskError, TaskError
-from app.infrastructure.repositories.task_repository import ClaimedTask, TaskRepository
-from app.workers.handlers import TaskContext, TaskHandler, build_handler_registry
-
 from app.application.services.aggregate.task_execution_service import TaskExecutionService
+from app.core.app_logging import get_logger
+from app.core.config import get_settings
+from app.core.time import utc_now
+from app.domain.exceptions import NonRetryableTaskError, RetryableTaskError, TaskError
+from app.infrastructure.datasource.relational.session import session_scope
+from app.infrastructure.repositories.task_repository import ClaimedTask, TaskRepository
+from app.workers.contracts import TaskHandler, WorkerTaskContext
+from app.workers.registry import build_handler_registry
 
 
 class WorkerRunner:
@@ -24,6 +23,7 @@ class WorkerRunner:
         queue_name: str,
         concurrency: int,
         handler_registry: dict[str, TaskHandler] | None = None,
+        worker_profile: str | None = None,
     ) -> None:
         self.settings = get_settings()
         self.worker_id = self.settings.worker_id
@@ -33,12 +33,13 @@ class WorkerRunner:
         )
         self.queue_name = queue_name
         self.concurrency = concurrency
-        self.handler_registry = handler_registry or build_handler_registry()
+        self.worker_profile = worker_profile or self.settings.worker_profile
+        self.handler_registry = handler_registry or build_handler_registry(self.worker_profile)
         self.execution_service = TaskExecutionService()
         self.executor = ThreadPoolExecutor(max_workers=self.concurrency)
 
     def run_forever(self) -> None:
-        self.logger.info("Worker started")
+        self.logger.info(f"Worker started profile={self.worker_profile}")
         while True:
             self.run_once(wait_for_completion=False)
             sleep(self.settings.worker_poll_interval_seconds)
@@ -90,20 +91,20 @@ class WorkerRunner:
         heartbeat_thread.start()
 
         try:
-            context = TaskContext(
+            context = WorkerTaskContext(
                 task_id=task.id,
                 task_type=task.task_type,
                 attempt_no=task.attempt_no,
                 worker_id=self.worker_id,
                 parent_task_id=task.parent_task_id,
-                cancel_event=cancel_event,
-                progress_callback=lambda progress, stage: self._update_progress(
+                _cancel_event=cancel_event,
+                _progress_callback=lambda progress, stage: self._update_progress(
                     task.id,
                     progress,
                     stage,
                 ),
-                cancel_check=lambda: self._is_cancel_requested(task.id, task.parent_task_id),
-                child_result_loader=self._load_child_results,
+                _cancel_check=lambda: self._is_cancel_requested(task.id, task.parent_task_id),
+                _child_result_loader=self._load_child_results,
             )
             result = handler(task.payload, context)
             self.execution_service.mark_task_succeeded(
