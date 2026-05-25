@@ -7,7 +7,7 @@ from collections.abc import Sequence
 import pytest
 
 from app.core.config import get_settings
-from app.runtime.combined import CombinedRunner
+from app.infrastructure.runtime.combined import CombinedRunner
 
 
 class FakeProcess:

@@ -6,11 +6,11 @@ import re
 
 from fastapi.testclient import TestClient
 
-from app.api.app import create_app
 from app.bootstrap.logging import configure_runtime_logging
 from app.core.config import clear_settings_caches, get_settings
 from app.core.app_logging import configure_logging
-from app.db.base import Base
+from app.infrastructure.datasource.relational.base import Base
+from app.interfaces.http.app import create_app
 from tests.conftest import seed_active_runtime_config
 
 

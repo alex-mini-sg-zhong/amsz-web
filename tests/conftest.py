@@ -7,12 +7,16 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.app import create_app
 from app.core.config import clear_settings_caches, default_runtime_config_template
-from app.db import models  # noqa: F401
-from app.db.base import Base
-from app.db.session import get_engine, get_session_factory, session_scope
-from app.repositories.runtime_config_repository import RuntimeConfigRepository
+from app.infrastructure.datasource.relational import models  # noqa: F401
+from app.infrastructure.datasource.relational.base import Base
+from app.infrastructure.datasource.relational.session import (
+    get_engine,
+    get_session_factory,
+    session_scope,
+)
+from app.infrastructure.repositories.runtime_config_repository import RuntimeConfigRepository
+from app.interfaces.http.app import create_app
 
 
 def seed_active_runtime_config(overrides: dict[str, Any] | None = None) -> None:

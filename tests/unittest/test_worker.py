@@ -2,18 +2,18 @@ from __future__ import annotations
 
 import pytest
 
+from app.application.services.base.task_command_service import TaskCommandService
+from app.contracts.http.task import TaskCreateRequest
 from app.core.config import clear_settings_caches
-from app.db.base import Base
-from app.db.session import session_scope
-from app.repositories.task_repository import TaskRepository
-from app.schemas.task import TaskCreateRequest
-from app.services.task_service import TaskService
-from app.worker.runner import WorkerRunner
+from app.infrastructure.datasource.relational.base import Base
+from app.infrastructure.datasource.relational.session import session_scope
+from app.infrastructure.repositories.task_repository import TaskRepository
+from app.infrastructure.runtime.worker_runner import WorkerRunner
 
 
 def test_worker_executes_task() -> None:
     with session_scope() as session:
-        service = TaskService(TaskRepository(session))
+        service = TaskCommandService(TaskRepository(session))
         task_id, _, _ = service.create_task(
             TaskCreateRequest(
                 task_type="noop.success",
@@ -37,7 +37,7 @@ def test_worker_executes_task() -> None:
 
 def test_worker_moves_retryable_task_to_retry_wait() -> None:
     with session_scope() as session:
-        service = TaskService(TaskRepository(session))
+        service = TaskCommandService(TaskRepository(session))
         task_id, _, _ = service.create_task(
             TaskCreateRequest(
                 task_type="force.retry",

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from app.migration.runner import SchemaMigrationRunner
+from app.bootstrap.migration import SchemaMigrationRunner
 
 
 class FakeScalarResult:

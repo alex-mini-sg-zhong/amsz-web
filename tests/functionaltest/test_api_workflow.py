@@ -5,11 +5,11 @@ import sqlite3
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.api.app import create_app
 from app.core.config import clear_settings_caches
-from app.db.session import get_engine, get_session_factory, session_scope
-from app.repositories.task_repository import TaskRepository
-from app.worker.runner import WorkerRunner
+from app.infrastructure.datasource.relational.session import get_engine, get_session_factory, session_scope
+from app.infrastructure.repositories.task_repository import TaskRepository
+from app.infrastructure.runtime.worker_runner import WorkerRunner
+from app.interfaces.http.app import create_app
 
 
 def test_create_and_get_task(client) -> None:
