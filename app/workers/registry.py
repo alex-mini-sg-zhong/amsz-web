@@ -6,13 +6,15 @@ from app.workers.contracts import TaskHandler
 from app.workers.modules.batch import HANDLERS as BATCH_HANDLERS
 from app.workers.modules.basic import HANDLERS as BASIC_HANDLERS
 from app.workers.modules.polymarket import HANDLERS as POLYMARKET_HANDLERS
+from app.workers.modules.szdm import HANDLERS as SZDM_HANDLERS
 
 PROFILE_MODULE_MAP: dict[str, tuple[Mapping[str, TaskHandler], ...]] = {
-    "default": (BASIC_HANDLERS, BATCH_HANDLERS, POLYMARKET_HANDLERS),
-    "all": (BASIC_HANDLERS, BATCH_HANDLERS, POLYMARKET_HANDLERS),
+    "default": (BASIC_HANDLERS, BATCH_HANDLERS, POLYMARKET_HANDLERS, SZDM_HANDLERS),
+    "all": (BASIC_HANDLERS, BATCH_HANDLERS, POLYMARKET_HANDLERS, SZDM_HANDLERS),
     "basic": (BASIC_HANDLERS,),
     "batch": (BATCH_HANDLERS,),
     "integrations": (POLYMARKET_HANDLERS,),
+    "szdm": (SZDM_HANDLERS,),
 }
 
 

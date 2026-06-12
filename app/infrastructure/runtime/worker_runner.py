@@ -7,6 +7,7 @@ from time import sleep
 
 from app.application.services.aggregate.polymarket_sync_service import PolymarketSyncService
 from app.application.services.aggregate.system_scheduler_service import SystemSchedulerService
+from app.application.services.aggregate.szdm_scheduler_service import SzdmSchedulerService
 from app.application.services.aggregate.task_execution_service import TaskExecutionService
 from app.core.app_logging import get_logger
 from app.core.config import get_settings
@@ -14,6 +15,7 @@ from app.core.time import utc_now
 from app.domain.exceptions import NonRetryableTaskError, RetryableTaskError, TaskError
 from app.infrastructure.datasource.relational.session import session_scope
 from app.infrastructure.repositories.system_schedule_repository import SystemScheduleRepository
+from app.infrastructure.repositories.szdm_repository import SzdmRepository
 from app.infrastructure.repositories.task_repository import ClaimedTask, TaskRepository
 from app.workers.contracts import TaskHandler, WorkerTaskContext
 from app.workers.registry import build_handler_registry
@@ -37,6 +39,7 @@ class WorkerRunner:
         self.handler_registry = handler_registry or build_handler_registry(self.worker_profile)
         self.execution_service = TaskExecutionService()
         self.scheduler_service = SystemSchedulerService()
+        self.szdm_scheduler_service = SzdmSchedulerService()
         self.executor = ThreadPoolExecutor(max_workers=self.concurrency)
         self._last_scheduler_tick_at: datetime | None = None
 
@@ -81,10 +84,20 @@ class WorkerRunner:
         self._last_scheduler_tick_at = now
         try:
             with session_scope() as session:
+                task_repository = TaskRepository(session)
                 created_count = self.scheduler_service.tick(
                     schedule_repository=SystemScheduleRepository(session),
-                    task_repository=TaskRepository(session),
+                    task_repository=task_repository,
                     max_due_schedules=self.settings.scheduler_max_due_schedules,
+                )
+                created_count += self.szdm_scheduler_service.tick(
+                    szdm_repository=SzdmRepository(session),
+                    task_repository=task_repository,
+                    queue_name=self.settings.szdm_queue_name,
+                    max_attempts=self.settings.szdm_subtask_max_attempts,
+                    timeout_seconds=self.settings.szdm_subtask_timeout_seconds,
+                    max_jobs=self.settings.szdm_scheduler_max_jobs,
+                    per_job_limit=self.settings.szdm_scheduler_per_job_dispatch_limit,
                 )
             if created_count:
                 self.logger.info(f"Scheduler created tasks count={created_count}")

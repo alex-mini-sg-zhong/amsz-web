@@ -49,6 +49,8 @@ class TaskExecutionService:
                 error_message=error_message,
                 scheduled_at=scheduled_at,
             )
+        if task.task_type.startswith("szdm."):
+            return
         self._handle_post_child_update(task)
 
     def mark_task_failed(
@@ -98,6 +100,8 @@ class TaskExecutionService:
                 attempt_no=task.attempt_no,
                 worker_id=worker_id,
             )
+        if task.task_type.startswith("szdm."):
+            return
         self._handle_post_child_update(task)
 
     def update_progress(
@@ -134,6 +138,9 @@ class TaskExecutionService:
         result: dict[str, Any] | None,
         aggregate_created_by: str | None,
     ) -> None:
+        if task.task_type.startswith("szdm."):
+            return
+
         if task.task_role == TaskRole.CHILD and task.parent_task_id is not None:
             self._handle_post_child_update(task, aggregate_created_by=aggregate_created_by)
             return
@@ -152,6 +159,9 @@ class TaskExecutionService:
         error_code: str,
         error_message: str,
     ) -> None:
+        if task.task_type.startswith("szdm."):
+            return
+
         if task.task_role == TaskRole.CHILD and task.parent_task_id is not None:
             self._handle_post_child_update(task)
             return
