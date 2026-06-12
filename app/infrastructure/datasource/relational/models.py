@@ -264,3 +264,69 @@ class PolymarketEventRaw(Base):
     payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), nullable=False, server_default=func.now())
+
+
+class SzdmJob(Base):
+    __tablename__ = "szdm_job"
+    __table_args__ = (
+        UniqueConstraint("parent_task_id", name="uk_szdm_job_parent_task"),
+        Index("idx_szdm_job_status_priority", "status", "priority", "updated_at"),
+        Index("idx_szdm_job_report_status", "report_status", "updated_at"),
+    )
+
+    id: Mapped[int] = mapped_column(PKInt, primary_key=True, autoincrement=True)
+    parent_task_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="PENDING")
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
+    job_s3_prefix: Mapped[str] = mapped_column(String(512), nullable=False)
+    input_s3_key: Mapped[str] = mapped_column(String(512), nullable=False)
+    item_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    dispatched_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    running_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    succeeded_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    reused_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    generated_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    max_parallel_children: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    dispatch_batch_size: Mapped[int] = mapped_column(Integer, nullable=False, default=50)
+    reuse_window_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=86400)
+    report_status: Mapped[str] = mapped_column(String(32), nullable=False, default="PENDING")
+    report_s3_key: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    report_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    report_summary_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    report_metric_summary_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), nullable=False, server_default=func.now(), onupdate=func.now())
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=False), nullable=True)
+
+
+class SzdmItem(Base):
+    __tablename__ = "szdm_item"
+    __table_args__ = (
+        UniqueConstraint("job_id", "item_key", "condition_key", name="uk_szdm_item_key_condition"),
+        Index("idx_szdm_item_job_status_priority", "job_id", "status", "priority", "item_index"),
+        Index("idx_szdm_item_child_task", "job_id", "child_task_id"),
+        Index("idx_szdm_item_key", "job_id", "item_key"),
+        Index("idx_szdm_item_condition", "job_id", "condition_key"),
+    )
+
+    id: Mapped[int] = mapped_column(PKInt, primary_key=True, autoincrement=True)
+    job_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    item_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    item_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    condition_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="PENDING")
+    reuse_status: Mapped[str] = mapped_column(String(32), nullable=False, default="NOT_CHECKED")
+    child_task_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
+    attempt_no: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    result_s3_key: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    result_timestamp: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=False), nullable=True)
+    metrics_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    display_summary_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    error_code: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    error_message: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=False), nullable=True)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=False), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), nullable=False, server_default=func.now(), onupdate=func.now())

@@ -64,6 +64,16 @@ class RuntimeSettings(BaseModel):
     polymarket_request_timeout_seconds: float = 10.0
     polymarket_catalog_limit: int = 200
     polymarket_snapshot_limit: int = 100
+    szdm_queue_name: str = "default"
+    szdm_subtask_max_attempts: int = 3
+    szdm_subtask_timeout_seconds: int = 7200
+    szdm_scheduler_max_jobs: int = 10
+    szdm_scheduler_per_job_dispatch_limit: int = 50
+    szdm_default_max_parallel_children: int = 100
+    szdm_default_dispatch_batch_size: int = 50
+    szdm_default_reuse_window_seconds: int = 86400
+    szdm_s3_bucket: str = "amsz-local"
+    szdm_s3_root_dir: str = "data/s3"
 
 
 class LoggingSettings(BaseModel):
@@ -106,6 +116,16 @@ def default_runtime_config_template() -> dict[str, Any]:
         "polymarket_request_timeout_seconds": 10.0,
         "polymarket_catalog_limit": 200,
         "polymarket_snapshot_limit": 100,
+        "szdm_queue_name": "default",
+        "szdm_subtask_max_attempts": 3,
+        "szdm_subtask_timeout_seconds": 7200,
+        "szdm_scheduler_max_jobs": 10,
+        "szdm_scheduler_per_job_dispatch_limit": 50,
+        "szdm_default_max_parallel_children": 100,
+        "szdm_default_dispatch_batch_size": 50,
+        "szdm_default_reuse_window_seconds": 86400,
+        "szdm_s3_bucket": "amsz-local",
+        "szdm_s3_root_dir": "data/s3",
     }
 
 
