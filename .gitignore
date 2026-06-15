@@ -1,4 +1,5 @@
 .venv/
+.envs/
 *.egg-info/
 .idea/
 data/

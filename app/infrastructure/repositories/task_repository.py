@@ -4,9 +4,11 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, delete, select
 from sqlalchemy.orm import Session
 
+from app.core.app_logging import get_logger
+from app.core.config import get_settings
 from app.core.time import utc_now
 from app.infrastructure.datasource.relational.models import Task, TaskAttempt, TaskEvent
 from app.domain.enums import AttemptStatus, TaskRole, TaskStatus
@@ -866,6 +868,16 @@ class TaskRepository:
         attempt.error_code = error_code
         attempt.error_message = self._truncate(error_message)
 
+        settings = get_settings()
+        if settings.task_attempt_cleanup_on_completion and status in (
+            AttemptStatus.SUCCEEDED,
+            AttemptStatus.FAILED,
+            AttemptStatus.CANCELED,
+        ):
+            self.session.execute(
+                delete(TaskAttempt).where(TaskAttempt.task_id == task_id)
+            )
+
     def _add_event(
         self,
         *,
@@ -876,16 +888,27 @@ class TaskRepository:
         message: str | None,
         payload: dict[str, Any] | None = None,
     ) -> None:
-        self.session.add(
-            TaskEvent(
-                task_id=task_id,
-                event_type=event_type,
-                from_status=from_status,
-                to_status=to_status,
-                message=message,
-                event_payload=payload,
-            )
+        settings = get_settings()
+        logger = get_logger("app.infrastructure.repositories.task_repository")
+        logger.info(
+            "task_event task_id=%s event_type=%s from_status=%s to_status=%s event_message=%s",
+            str(task_id),
+            event_type,
+            from_status or "-",
+            to_status or "-",
+            message or "-",
         )
+        if settings.task_event_db_enabled:
+            self.session.add(
+                TaskEvent(
+                    task_id=task_id,
+                    event_type=event_type,
+                    from_status=from_status,
+                    to_status=to_status,
+                    message=message,
+                    event_payload=payload,
+                )
+            )
 
     @staticmethod
     def _truncate(value: str | None) -> str | None:

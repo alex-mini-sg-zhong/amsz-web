@@ -9,6 +9,7 @@ from app.application.services.aggregate.task_orchestration_service import (
 )
 from app.application.services.base.task_command_service import TaskCommandService
 from app.application.services.base.task_query_service import TaskQueryService
+from app.core.config import get_settings
 from app.contracts.http.task import (
     TaskCancelResponse,
     TaskChildResponse,
@@ -191,6 +192,9 @@ def list_task_events(
     task = query_service.get_task(task_id)
     if task is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+    settings = get_settings()
+    if not settings.task_event_db_enabled:
+        return []
     events = query_service.list_events(task_id)
     return [
         TaskEventResponse(

@@ -53,6 +53,8 @@ FULL_DEFAULTS: dict[str, object] = {
     "szdm_s3_provider": "hws3",
     "szdm_s3_region": "us-east-1",
     "szdm_s3_endpoint_url": "http://localhost:9000",
+    "task_event_db_enabled": True,
+    "task_attempt_cleanup_on_completion": False,
 }
 
 

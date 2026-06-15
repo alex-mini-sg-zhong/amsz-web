@@ -138,7 +138,7 @@ class S3ClientProvider:
     def build(self) -> LocalS3Client | Boto3S3Client:
         if self.provider == "local":
             return LocalS3Client(bucket=self.bucket, root_dir=Path(self.root_dir))
-        if self.provider == "aws":
+        if self.provider in ["aws","hws3",]:
             return Boto3S3Client(
                 bucket=self.bucket,
                 region=self.region,

@@ -77,6 +77,8 @@ class RuntimeSettings(BaseModel):
     szdm_s3_provider: str = "local"
     szdm_s3_region: str = "us-east-1"
     szdm_s3_endpoint_url: str = ""
+    task_event_db_enabled: bool = True
+    task_attempt_cleanup_on_completion: bool = False
 
 
 class LoggingSettings(BaseModel):
@@ -132,6 +134,8 @@ def default_runtime_config_template() -> dict[str, Any]:
         "szdm_s3_provider": "local",
         "szdm_s3_region": "us-east-1",
         "szdm_s3_endpoint_url": "",
+        "task_event_db_enabled": True,
+        "task_attempt_cleanup_on_completion": False,
     }
 
 
