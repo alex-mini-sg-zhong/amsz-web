@@ -330,3 +330,17 @@ class SzdmItem(Base):
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=False), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), nullable=False, server_default=func.now(), onupdate=func.now())
+
+
+class AlembicSchema(Base):
+    __tablename__ = "alembic_schema"
+    __table_args__ = (
+        Index("idx_alembic_schema_applied", "applied_at"),
+    )
+
+    id: Mapped[int] = mapped_column(PKInt, primary_key=True, autoincrement=True)
+    version_num: Mapped[str] = mapped_column(String(32), nullable=False)
+    direction: Mapped[str] = mapped_column(String(8), nullable=False)
+    applied_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=False), nullable=False, server_default=func.now()
+    )

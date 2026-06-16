@@ -17,6 +17,7 @@ def test_main_handles_worker_keyboard_interrupt(monkeypatch, caplog) -> None:
             raise KeyboardInterrupt
 
     monkeypatch.setattr(main, "WorkerRunner", FakeWorkerRunner)
+    monkeypatch.setattr(main, "_run_startup_version_check", lambda: None)
 
     with caplog.at_level("INFO"):
         main.main()

@@ -6,7 +6,7 @@ import uvicorn
 
 from app.bootstrap.logging import configure_bootstrap_logging, configure_runtime_logging
 from app.bootstrap.migration import run_migration
-from app.bootstrap.runtime import load_runtime_settings
+from app.bootstrap.runtime import load_bootstrap_settings, load_runtime_settings
 from app.core.config import DEFAULT_LOG_LEVEL
 from app.core.app_logging import get_logger
 from app.infrastructure.runtime.combined import CombinedRunner
@@ -32,6 +32,14 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _run_startup_version_check() -> None:
+    """Check and synchronise DB schema version before starting the application."""
+    from app.bootstrap.migration import SchemaMigrationRunner
+
+    bootstrap_settings = load_bootstrap_settings()
+    SchemaMigrationRunner(database_url=bootstrap_settings.database_url).run()
+
+
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
@@ -47,6 +55,8 @@ def main() -> None:
         settings = load_runtime_settings()
         configure_runtime_logging(settings)
         logger = get_logger("app.main")
+
+        _run_startup_version_check()
 
         if args.mode == "api":
             uvicorn.run(
